@@ -1,0 +1,326 @@
+LAB 01: Process Creation & Termination
+
+Program 1: Process Creation Tree
+
+```c
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+int main() {
+    printf("Root Process PID: %d\n", getpid());
+    pid_t pid1 = fork();
+    
+    if(pid1 == 0) {
+        // First child
+        printf("Child 1 PID: %d, Parent PID: %d\n", getpid(), getppid());
+        
+        pid_t pid2 = fork();
+        if(pid2 == 0) {
+            // Grandchild
+            printf("Grandchild PID: %d, Parent PID: %d\n", getpid(), getppid());
+            sleep(2);
+            printf("Grandchild exiting\n");
+            exit(0);
+        } else {
+            wait(NULL);
+            printf("Child 1 exiting\n");
+            exit(0);
+        }
+    } else {
+        // Parent
+        pid_t pid3 = fork();
+        if(pid3 == 0) {
+            // Second child
+            printf("Child 2 PID: %d, Parent PID: %d\n", getpid(), getppid());
+            sleep(1);
+            printf("Child 2 exiting\n");
+            exit(0);
+        } else {
+            wait(NULL);
+            wait(NULL);
+            printf("Parent exiting\n");
+        }
+    }
+    return 0;
+}
+```
+
+Compile & Run:
+
+```bash
+gcc process_tree.c -o process_tree
+./process_tree
+```
+
+Program 2: Process Termination
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+
+int main() {
+    
+    pid_t pid = fork();
+    
+    if(pid == 0) {
+        // Child process
+        printf("Child: I'm the child process (PID: %d)\n", getpid());
+        printf("Child: I'll exit with status 42\n");
+        exit(42);  // Terminate with status 42
+    } else {
+        // Parent process
+        int status;
+        wait(&status);  // Wait for child to terminate
+        if(WIFEXITED(status)) {
+            printf("Parent: Child exited with status: %d\n", WEXITSTATUS(status));
+        }
+        printf("Parent: Continuing execution...\n");
+    }
+    return 0;
+}
+
+Lab2
+#include<stdio.h>
+#include<pthread.h>
+#include<semaphore.h>
+#include<unistd.h>
+sem_t rw_mutex;
+sem_t mutex;
+int read_count = 0;
+void *reader(void *arg){
+long reader_id = (long)arg;
+while (1){
+sem_wait(&mutex);
+read_count++;
+if(read_count == 1){
+sem_wait(&rw_mutex);
+}
+  sem_post(&mutex);
+printf("Reader %ld is reading. Current readers:%d\n", reader_id, read_count);
+usleep(500000);
+sem_wait(&mutex);
+read_count--;
+if(read_count == 0){
+sem_post(&rw_mutex);
+} 
+sem_post(&mutex);
+usleep(1000000);
+}
+return NULL;
+} 
+void*writer(void*arg){
+long writer_id = (long)arg;
+while (1) {
+sem_wait(&rw_mutex); 
+printf("Writer %ld is writing.\n", (long)arg);
+usleep(1000000); 
+sem_post(&rw_mutex); 
+usleep(2000000);
+}
+return NULL;
+}
+int main() {
+pthread_t readers[5], writers[2];
+long i; 
+sem_init(&rw_mutex,0,1);
+sem_init(&mutex,0,1); 
+for(i = 0; i<5; i++){
+pthread_create(&readers[i], NULL, reader,(void*)(i + 1)); }
+            for(i = 0; i<2; i++){
+pthread_create(&writers[i], NULL, writer,(void*)(i +1));
+} 
+for(i=0;i<5;i++){
+pthread_join(readers[i], NULL);
+} 
+for(i=0;i<2;i++){
+pthread_join(writers[i], NULL);
+}
+sem_destroy(&rw_mutex);
+sem_destroy(&mutex);
+return 0;
+}
+Lab3a
+#include<stdio.h>
+#include<unistd.h>
+#include<sys/types.h>
+#include<sys/wait.h>
+int main()
+{ int fd[2],n;
+char buffer[100];
+pid_t p;
+pipe(fd);
+p = fork();
+if(p > 0)
+{
+printf("Parent Passing value to child\n");
+close(fd[0]);
+write(fd[1],"Omkar Jadiyar \n", 12);
+close(fd[1]);
+wait(NULL);
+}
+else
+{
+printf("Child printing received value \n");
+close(fd[1]);
+n = read(fd[0], buffer, 100);
+write(1, buffer, n);
+close(fd[0]);
+}
+return 0;
+}
+Lab3b
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/wait.h>
+#define BUFFER_SIZE 25int main() {
+int pipe1[2]; // Parent writes, Child reads
+int pipe2[2]; // Child writes, Parent reads
+pid_t pid;
+char parent_msg1[BUFFER_SIZE] = "Hello from parent (1)!";
+char child_msg1[BUFFER_SIZE] = "Hello from child (1)!";
+char parent_msg2[BUFFER_SIZE] = "Hello from parent (2)!";
+char child_msg2[BUFFER_SIZE] = "Hello from child (2)!";
+char read_buffer[BUFFER_SIZE];
+// Create pipe 1
+if (pipe(pipe1) == -1) {
+   }
+perror("pipe1");
+exit(EXIT_FAILURE);
+// Create pipe 2
+if (pipe(pipe2) == -1) {
+perror("pipe2");
+exit(EXIT_FAILURE);
+}
+pid = fork();
+if (pid < 0) {
+   } 
+perror("fork");
+exit(EXIT_FAILURE);
+else if (pid == 0) { 
+      // Child process
+close(pipe1[1]); // Close unused write end
+close(pipe2[0]); // Close unused read end
+// First message exchange
+read(pipe1[0], read_buffer, BUFFER_SIZE);
+printf("Child received: %s\n", read_buffer);         write(pipe2[1], child_msg1, strlen(child_msg1) + 1);
+printf("Child sent: %s\n", child_msg1);
+// Second message exchange
+read(pipe1[0], read_buffer, BUFFER_SIZE);
+printf("Child received: %s\n", read_buffer);
+write(pipe2[1], child_msg2, strlen(child_msg2) + 1);
+printf("Child sent: %s\n", child_msg2);
+// Close pipes
+close(pipe1[0]);
+close(pipe2[1]);
+  } 
+exit(EXIT_SUCCESS);
+else { 
+                  // Parent process
+close(pipe1[0]); // Close unused read end
+close(pipe2[1]); // Close unused write end
+// First message exchange
+write(pipe1[1], parent_msg1, strlen(parent_msg1) + 1);
+printf("Parent sent: %s\n", parent_msg1);
+read(pipe2[0], read_buffer, BUFFER_SIZE);
+printf("Parent received: %s\n", read_buffer);
+// Second message exchange
+write(pipe1[1], parent_msg2, strlen(parent_msg2) + 1);
+printf("Parent sent: %s\n", parent_msg2);
+read(pipe2[0], read_buffer, BUFFER_SIZE);
+printf("Parent received: %s\n", read_buffer);
+// Close pipes
+close(pipe1[1]);
+close(pipe2[0]);
+wait(NULL); // Wait for child to finish
+exit(EXIT_SUCCESS); }
+return 0;
+}
+Lab4
+#include<stdio.h>
+#include<stdlib.h>
+#include<unistd.h>
+#include<pthread.h>
+void *task(void *args)
+{
+printf("The Code is working\n");
+sleep(30);
+}
+int main()
+{
+pthread_t t_id;
+int ret;
+printf("Process id = %d\n", getpid());
+printf("Before Creation of Thread\n");
+ret = pthread_create(&t_id, NULL, task, NULL);
+if (ret ==0)
+printf("Thread Created Successfully\n");
+else
+    }
+printf("Problem in creating Thread\n");
+pthread_join(t_id, NULL);
+printf("Thread terminated\n");
+return 0; 
+Lab5#include<stdio.h>
+#include<pthread.h>
+int shared = 1;
+int updated_by_thread1 = 0;
+int updated_by_thread2 = 0;
+pthread_mutex_t lock;
+void*thread_func(void* arg) {
+int thread_id = *(int*)arg;
+printf("Thread %d trying to acquire lock\n", thread_id);
+pthread_mutex_lock(&lock);
+printf("Thread %d acquire lock\n",thread_id);
+printf("Thread %d reads the value of shared variable as %d\n", thread_id, shared);
+shared++;
+printf("Thread %d updated shared variable as:%d\n", thread_id, shared);
+if(thread_id==1)updated_by_thread1 = shared;
+else updated_by_thread2 = shared;
+pthread_mutex_unlock(&lock);
+printf("Thread %d released the lock\n",thread_id);
+return NULL;
+}
+int main() {
+pthread_t t1, t2;
+int id1 = 1, id2 = 2;
+pthread_mutex_init(&lock, NULL);
+pthread_create(&t1, NULL, thread_func, &id1);
+pthread_create(&t2, NULL, thread_func, &id2);
+pthread_join(t1, NULL);
+pthread_join(t2, NULL);
+printf("Value of shared variable updated by Thread1 as:%d\n", updated_by_thread1);
+printf("Value of shared variable updated by Thread2 as:%d\n", updated_by_thread2);
+printf("Final value of shared is %d\n", shared); pthread_mutex_destroy(&lock);
+return 0; 
+}
+Lab6
+#include<stdio.h>
+#include<unistd.h>
+#include<fcntl.h>
+int main()
+{
+int fd;
+char msg[30] = "Hi, I am Omkar Jadiyar!";
+char buffer[50];
+fd = open("Omkar.txt", O_RDWR | O_CREAT, 0644);
+printf("fd = %d\n", fd);
+if (fd != -1)
+{
+write(fd, msg, sizeof(msg));
+lseek(fd, 0, SEEK_SET);
+read( fd, buffer, sizeof(msg));
+printf("Read from file on 10-10-2025: %s\n", buffer); 
+close(fd);
+}
+else
+{
+printf("Error opening file!\n");
+}
+return 0;
+}
